@@ -6,6 +6,7 @@ from pathlib import Path
 import anthropic
 
 from story_forge.config import REVIEWER_MODEL, API_RETRY_LIMIT
+from story_forge.agents.json_utils import extract_json
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "reviewer.md"
 
@@ -70,7 +71,7 @@ def review_story(
 
     # Try to parse; retry once if malformed
     try:
-        result = json.loads(text)
+        result = extract_json(text)
     except json.JSONDecodeError:
         print("  [Reviewer JSON parse failed. Asking Reviewer to retry...]")
         retry_message = (
@@ -79,7 +80,7 @@ def review_story(
             "Please return ONLY the JSON object as specified."
         )
         text = _call_api(client, system, retry_message)
-        result = json.loads(text)
+        result = extract_json(text)
 
     _validate_review(result, dimension_names)
     return result

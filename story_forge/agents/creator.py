@@ -7,6 +7,7 @@ from pathlib import Path
 import anthropic
 
 from story_forge.config import CREATOR_MODEL, API_RETRY_LIMIT
+from story_forge.agents.json_utils import extract_json
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "creator.md"
 
@@ -53,7 +54,7 @@ def generate_rubric(client: anthropic.Anthropic, brief: str) -> list[dict]:
 
     # Try to parse; retry once if malformed
     try:
-        rubric = json.loads(text)
+        rubric = extract_json(text)
     except json.JSONDecodeError:
         print("  [Rubric JSON parse failed. Asking Creator to retry...]")
         user_message += (
@@ -61,7 +62,7 @@ def generate_rubric(client: anthropic.Anthropic, brief: str) -> list[dict]:
             "Please return ONLY a JSON array."
         )
         text = _call_api(client, system, user_message)
-        rubric = json.loads(text)
+        rubric = extract_json(text)
 
     return rubric
 
