@@ -35,11 +35,6 @@ class TestPrintScoresTable:
 
 class TestSaveOutput:
     def test_creates_file_with_content(self, tmp_path):
-        with patch("story_forge.main.Path.__truediv__", return_value=tmp_path):
-            # Call directly with a patched outputs dir
-            pass
-
-        # Simpler approach: just call and check the file is created
         brief = "Write a mystery"
         story = "It was a dark and stormy night."
         history = [
@@ -53,7 +48,7 @@ class TestSaveOutput:
             }
         ]
 
-        filepath = _save_output(brief, story, history)
+        filepath = _save_output(brief, story, history, output_dir=tmp_path)
         path = Path(filepath)
 
         assert path.exists()
@@ -63,15 +58,11 @@ class TestSaveOutput:
         assert "Iteration 1" in content
         assert "Needs work." in content
 
-        # Cleanup
-        path.unlink()
-
-    def test_file_naming(self):
-        filepath = _save_output("brief", "story", [])
+    def test_file_naming(self, tmp_path):
+        filepath = _save_output("brief", "story", [], output_dir=tmp_path)
         path = Path(filepath)
         assert path.name.startswith("story_")
         assert path.suffix == ".md"
-        path.unlink()
 
 
 # --- _get_user_inputs ---
@@ -144,21 +135,21 @@ class TestRun:
             "feedback": "Needs more tension in act two.",
         }
 
-    def test_exits_on_first_pass(self, mock_client, rubric, passing_review, capsys):
+    def test_exits_on_first_pass(self, mock_client, rubric, passing_review, capsys, tmp_path):
         mock_client.messages.create.side_effect = [
             _mock_response(json.dumps(rubric)),         # rubric generation
             _mock_response("A great story."),            # first draft
             _mock_response(json.dumps(passing_review)),  # review passes
         ]
 
-        run(client=mock_client, brief="Write something", steerable=False)
+        run(client=mock_client, brief="Write something", steerable=False, output_dir=tmp_path)
 
         output = capsys.readouterr().out
         assert "Iteration 1/15" in output
         assert "Quality threshold reached" in output
         assert "A great story." in output
 
-    def test_loops_on_failing_review(self, mock_client, rubric, failing_review, passing_review, capsys):
+    def test_loops_on_failing_review(self, mock_client, rubric, failing_review, passing_review, capsys, tmp_path):
         mock_client.messages.create.side_effect = [
             _mock_response(json.dumps(rubric)),           # rubric
             _mock_response("Draft 1"),                     # first draft
@@ -167,14 +158,14 @@ class TestRun:
             _mock_response(json.dumps(passing_review)),    # pass
         ]
 
-        run(client=mock_client, brief="Write something", steerable=False)
+        run(client=mock_client, brief="Write something", steerable=False, output_dir=tmp_path)
 
         output = capsys.readouterr().out
         assert "Iteration 1/15" in output
         assert "Iteration 2/15" in output
         assert "Quality threshold reached at iteration 2" in output
 
-    def test_steering_appends_input(self, mock_client, rubric, failing_review, passing_review, monkeypatch):
+    def test_steering_appends_input(self, mock_client, rubric, failing_review, passing_review, monkeypatch, tmp_path):
         mock_client.messages.create.side_effect = [
             _mock_response(json.dumps(rubric)),
             _mock_response("Draft 1"),
@@ -185,7 +176,7 @@ class TestRun:
 
         monkeypatch.setattr("builtins.input", lambda *a, **kw: "Make it darker")
 
-        run(client=mock_client, brief="A story", steerable=True)
+        run(client=mock_client, brief="A story", steerable=True, output_dir=tmp_path)
 
         # The second Creator call should have the steering input
         creator_calls = [
@@ -196,25 +187,19 @@ class TestRun:
         all_call_args = str(mock_client.messages.create.call_args_list)
         assert "Make it darker" in all_call_args
 
-    def test_saves_output_file(self, mock_client, rubric, passing_review):
+    def test_saves_output_file(self, mock_client, rubric, passing_review, tmp_path):
         mock_client.messages.create.side_effect = [
             _mock_response(json.dumps(rubric)),
             _mock_response("Final story."),
             _mock_response(json.dumps(passing_review)),
         ]
 
-        run(client=mock_client, brief="Test brief", steerable=False)
+        run(client=mock_client, brief="Test brief", steerable=False, output_dir=tmp_path)
 
-        # Check that an output file was created
-        outputs_dir = Path(__file__).resolve().parent.parent / "story_forge" / "outputs"
-        md_files = list(outputs_dir.glob("story_*.md"))
-        assert len(md_files) >= 1
+        md_files = list(tmp_path.glob("story_*.md"))
+        assert len(md_files) == 1
 
-        # Cleanup
-        for f in md_files:
-            f.unlink()
-
-    def test_max_iterations_respected(self, mock_client, rubric, failing_review, capsys):
+    def test_max_iterations_respected(self, mock_client, rubric, failing_review, capsys, tmp_path):
         responses = [_mock_response(json.dumps(rubric))]
         for _ in range(15):
             responses.append(_mock_response("Draft"))
@@ -222,12 +207,7 @@ class TestRun:
 
         mock_client.messages.create.side_effect = responses
 
-        run(client=mock_client, brief="A story", steerable=False)
+        run(client=mock_client, brief="A story", steerable=False, output_dir=tmp_path)
 
         output = capsys.readouterr().out
         assert "Maximum iterations (15) reached" in output
-
-        # Cleanup output files
-        outputs_dir = Path(__file__).resolve().parent.parent / "story_forge" / "outputs"
-        for f in outputs_dir.glob("story_*.md"):
-            f.unlink()

@@ -63,9 +63,10 @@ def _save_output(
     brief: str,
     final_story: str,
     history: list[dict],
+    output_dir: Path | None = None,
 ) -> str:
     """Save the full session to a markdown file. Returns the file path."""
-    outputs_dir = Path(__file__).resolve().parent / "outputs"
+    outputs_dir = output_dir or Path(__file__).resolve().parent / "outputs"
     outputs_dir.mkdir(exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -98,6 +99,7 @@ def run(
     client: anthropic.Anthropic | None = None,
     brief: str | None = None,
     steerable: bool | None = None,
+    output_dir: Path | None = None,
 ) -> None:
     """Main loop. Parameters allow injection for testing."""
     load_dotenv()
@@ -173,7 +175,7 @@ def run(
             print()
 
     # Save and print summary
-    filepath = _save_output(brief, final_story, history)
+    filepath = _save_output(brief, final_story, history, output_dir=output_dir)
 
     print(f"\n{'=' * 60}")
     print("  SUMMARY")
