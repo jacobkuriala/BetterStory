@@ -120,8 +120,8 @@ class TestRun:
     @pytest.fixture
     def passing_review(self):
         return {
-            "scores": {"prose": 9, "pacing": 8},
-            "average": 8.5,
+            "scores": {"prose": 9, "pacing": 9},
+            "average": 9.0,
             "satisfied": True,
             "feedback": "Excellent work.",
         }
